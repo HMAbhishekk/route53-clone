@@ -11,8 +11,11 @@ router = APIRouter(prefix="/api/zones/{zone_id}/records", tags=["dns-records"])
 VALID_TYPES = {"A", "AAAA", "CNAME", "TXT", "MX", "NS", "PTR", "SRV", "CAA"}
 
 
-def _ensure_zone(zone_id: str, db: Session) -> models.HostedZone:
-    zone = db.query(models.HostedZone).filter(models.HostedZone.id == zone_id).first()
+def _ensure_zone(zone_id: str, db: Session, user_id: str) -> models.HostedZone:
+    zone = db.query(models.HostedZone).filter(
+        models.HostedZone.id == zone_id,
+        models.HostedZone.user_id == user_id,
+    ).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Hosted zone not found")
     return zone
@@ -36,9 +39,9 @@ def list_records(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user),
 ):
-    _ensure_zone(zone_id, db)
+    _ensure_zone(zone_id, db, current_user.id)
     q = db.query(models.DNSRecord).filter(models.DNSRecord.zone_id == zone_id)
     if search:
         q = q.filter(models.DNSRecord.name.ilike(f"%{search}%"))
@@ -54,9 +57,9 @@ def create_record(
     zone_id: str,
     payload: schemas.DNSRecordCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user),
 ):
-    zone = _ensure_zone(zone_id, db)
+    zone = _ensure_zone(zone_id, db, current_user.id)
     if payload.record_type.upper() not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid record type. Must be one of: {', '.join(VALID_TYPES)}")
 
@@ -72,15 +75,22 @@ def create_record(
         comment=payload.comment or "",
     )
     db.add(record)
-    zone.record_count = db.query(models.DNSRecord).filter(models.DNSRecord.zone_id == zone_id).count() + 1
+    zone.record_count = db.query(models.DNSRecord).filter(
+        models.DNSRecord.zone_id == zone_id
+    ).count() + 1
     db.commit()
     db.refresh(record)
     return record
 
 
 @router.get("/{record_id}", response_model=schemas.DNSRecordOut)
-def get_record(zone_id: str, record_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    _ensure_zone(zone_id, db)
+def get_record(
+    zone_id: str,
+    record_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    _ensure_zone(zone_id, db, current_user.id)
     return _ensure_record(record_id, zone_id, db)
 
 
@@ -90,9 +100,9 @@ def update_record(
     record_id: str,
     payload: schemas.DNSRecordUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user),
 ):
-    _ensure_zone(zone_id, db)
+    _ensure_zone(zone_id, db, current_user.id)
     record = _ensure_record(record_id, zone_id, db)
     for field, val in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, val)
@@ -106,9 +116,9 @@ def delete_record(
     zone_id: str,
     record_id: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: models.User = Depends(get_current_user),
 ):
-    zone = _ensure_zone(zone_id, db)
+    zone = _ensure_zone(zone_id, db, current_user.id)
     record = _ensure_record(record_id, zone_id, db)
     db.delete(record)
     zone.record_count = max(0, zone.record_count - 1)

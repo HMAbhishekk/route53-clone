@@ -18,20 +18,24 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    zones = relationship("HostedZone", back_populates="owner", cascade="all, delete-orphan")
+
 
 class HostedZone(Base):
     __tablename__ = "hosted_zones"
 
     id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     comment = Column(String, default="")
     private_zone = Column(Boolean, default=False)
-    record_count = Column(Integer, default=2)  # NS + SOA by default
+    record_count = Column(Integer, default=2)
     status = Column(String, default="INSYNC")
     caller_reference = Column(String, default=gen_id)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    owner = relationship("User", back_populates="zones")
     records = relationship("DNSRecord", back_populates="zone", cascade="all, delete-orphan")
 
 
@@ -41,9 +45,9 @@ class DNSRecord(Base):
     id = Column(String, primary_key=True, default=gen_id)
     zone_id = Column(String, ForeignKey("hosted_zones.id"), nullable=False)
     name = Column(String, nullable=False)
-    record_type = Column(String, nullable=False)   # A, AAAA, CNAME, MX, TXT, NS, PTR, SRV, CAA
+    record_type = Column(String, nullable=False)
     ttl = Column(Integer, default=300)
-    value = Column(Text, nullable=False)           # newline-separated for multiple values
+    value = Column(Text, nullable=False)
     routing_policy = Column(String, default="Simple")
     alias = Column(Boolean, default=False)
     comment = Column(String, default="")
