@@ -4,7 +4,6 @@ from database import engine
 import models
 from routers import auth, zones, records, importexport
 
-# Create all tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -15,7 +14,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://route53-clone.vercel.app", "https://*.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://route53-clone-c8lfy4kow-hmabhishekks-projects.vercel.app",
+        "https://*.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,7 +28,6 @@ app.include_router(auth.router)
 app.include_router(zones.router)
 app.include_router(records.router)
 app.include_router(importexport.router)
-
 
 @app.get("/")
 def root():
