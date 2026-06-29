@@ -3,8 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 from routers import auth, zones, records, importexport
+from sqlalchemy import text
 
+# Create all tables
 models.Base.metadata.create_all(bind=engine)
+
+# Migration: add user_id column if it doesn't exist
+with engine.connect() as conn:
+    try:
+        conn.execute(text("ALTER TABLE hosted_zones ADD COLUMN user_id TEXT"))
+        conn.commit()
+        print("Migration: added user_id column")
+    except Exception:
+        pass  # Column already exists
 
 app = FastAPI(
     title="Route53 Clone API",
